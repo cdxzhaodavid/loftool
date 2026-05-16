@@ -48,6 +48,11 @@ const MainLayout = ({ children }) => {
       label: isMobile ? '基金' : '基金查询',
     },
     {
+      key: '/dashboard/lof-funds',
+      icon: <PieChartOutlined />,
+      label: isMobile ? 'LOF' : 'LOF基金',
+    },
+    {
       key: '/dashboard/data-browser',
       icon: <DatabaseOutlined />,
       label: isMobile ? '数据' : '数据浏览',

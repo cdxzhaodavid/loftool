@@ -8,6 +8,7 @@ import InitializePage from './pages/InitializePage';
 import MainLayout from './layouts/MainLayout';
 import FundsPage from './pages/FundsPage';
 import FundDetailPage from './pages/FundDetailPage';
+import LofFundsPage from './pages/LofFundsPage';
 import AccountsPage from './pages/AccountsPage';
 import PositionsPage from './pages/PositionsPage';
 import WatchlistsPage from './pages/WatchlistsPage';
@@ -136,6 +137,16 @@ function App() {
                   <PrivateRoute>
                     <MainLayout>
                       <DataBrowserPage />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/dashboard/lof-funds"
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <LofFundsPage />
                     </MainLayout>
                   </PrivateRoute>
                 }
