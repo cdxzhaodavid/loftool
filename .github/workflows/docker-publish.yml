@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKERHUB_USERNAME: jasamine
-  FRONTEND_IMAGE_NAME: fundval-frontend
-  BACKEND_IMAGE_NAME: fundval-backend
+  DOCKERHUB_USERNAME: cdxzhaodavid
+  FRONTEND_IMAGE_NAME: loftool-frontend
+  BACKEND_IMAGE_NAME: loftool-backend
 
 jobs:
   build-and-push:
