@@ -22,6 +22,7 @@ class EastMoneySource(BaseEstimateSource):
     HISTORY_URL = 'http://fund.eastmoney.com/pingzhongdata/{code}.js'
     FUND_HOLDINGS_URL = 'https://fundmobapi.eastmoney.com/FundMNewApi/FundMNInverstPosition'
     STOCK_QUOTE_URL = 'http://push2.eastmoney.com/api/qt/ulist.np/get'
+    FUND_DETAIL_URL = 'http://fund.eastmoney.com/{code}.html'
 
     def get_source_name(self) -> str:
         return 'eastmoney'
@@ -428,3 +429,64 @@ class EastMoneySource(BaseEstimateSource):
         except Exception as e:
             logger.error(f'获取基金持仓失败（未知错误）：{fund_code}, 错误：{e}')
             return []
+
+    def fetch_market_share(self, fund_code: str) -> Optional[Dict]:
+        """
+        获取场内份额数据（包括日增份额）
+        
+        Returns:
+            dict: {
+                'fund_code': str,
+                'market_share': int,      # 场内份额（万份）
+                'market_share_date': date,
+                'daily_share_change': int  # 日增份额（万份）
+            }
+            失败时返回 None
+        """
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': f'http://fund.eastmoney.com/{fund_code}.html',
+            }
+            
+            url = f'http://fund.eastmoney.com/pingzhongdata/{fund_code}.js'
+            response = requests.get(url, headers=headers, timeout=10)
+            response.encoding = 'utf-8'
+            text = response.text
+            
+            # 提取场内份额数据
+            # 格式：var shareData = {"LJZF":1234567,"SYE":123456,"LRZF":1234};
+            # LJZF: 累计净值
+            # SYE: 份额（万份）
+            # LRZF: 日增份额（万份）
+            share_match = re.search(r'var shareData\s*=\s*({.*?});', text, re.DOTALL)
+            if not share_match:
+                logger.warning(f'无法解析场内份额数据：{fund_code}')
+                return None
+            
+            try:
+                share_data = json.loads(share_match.group(1))
+            except json.JSONDecodeError:
+                logger.warning(f'场内份额数据JSON解析失败：{fund_code}')
+                return None
+            
+            market_share = share_data.get('SYE')
+            daily_change = share_data.get('LRZF')
+            
+            if market_share is None:
+                logger.warning(f'场内份额数据缺失：{fund_code}')
+                return None
+            
+            return {
+                'fund_code': fund_code,
+                'market_share': int(market_share) if market_share else None,
+                'daily_share_change': int(daily_change) if daily_change else None,
+                'market_share_date': date.today(),
+            }
+            
+        except requests.RequestException as e:
+            logger.error(f'获取场内份额失败（网络错误）：{fund_code}, 错误：{e}')
+            return None
+        except Exception as e:
+            logger.error(f'获取场内份额失败（未知错误）：{fund_code}, 错误：{e}')
+            return None

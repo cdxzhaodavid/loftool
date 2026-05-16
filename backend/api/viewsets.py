@@ -131,6 +131,27 @@ class FundViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
     @action(detail=True, methods=['get'])
+    def intraday(self, request, fund_code=None):
+        """获取分时数据（支持盘后访问历史数据）"""
+        date = request.query_params.get('date')
+        
+        source = SourceRegistry.get_source('sina')
+        if not source:
+            return Response(
+                {'error': '数据源 sina 不存在'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            data = source.fetch_intraday_data(fund_code, date)
+            return Response(data)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'])
     def index_holdings(self, request, fund_code=None):
         """获取基金持仓成分股（指数/ETF 基金）"""
         source_name = request.query_params.get('source', 'eastmoney')
@@ -146,6 +167,46 @@ class FundViewSet(viewsets.ReadOnlyModelViewSet):
         except Exception as e:
             logger.error(f'获取成分股失败：{fund_code}, 错误：{e}')
             return Response({'fund_code': fund_code, 'holdings': []})
+
+    @action(detail=True, methods=['get'])
+    def market_share(self, request, fund_code=None):
+        """获取场内份额数据"""
+        fund = self.get_object()
+        
+        # 先检查缓存
+        if fund.market_share and fund.market_share_date == date.today():
+            return Response({
+                'fund_code': fund_code,
+                'market_share': fund.market_share,
+                'daily_share_change': fund.daily_share_change,
+                'market_share_date': fund.market_share_date.isoformat() if fund.market_share_date else None,
+                'from_cache': True,
+            })
+        
+        # 从数据源获取
+        source = SourceRegistry.get_source('eastmoney')
+        if not source:
+            return Response({'error': '数据源不存在'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        try:
+            data = source.fetch_market_share(fund_code)
+            if data:
+                # 更新数据库
+                fund.market_share = data.get('market_share')
+                fund.daily_share_change = data.get('daily_share_change')
+                fund.market_share_date = data.get('market_share_date')
+                fund.save(update_fields=['market_share', 'daily_share_change', 'market_share_date'])
+                
+                return Response({
+                    'fund_code': fund_code,
+                    'market_share': data['market_share'],
+                    'daily_share_change': data['daily_share_change'],
+                    'market_share_date': data['market_share_date'].isoformat(),
+                    'from_cache': False,
+                })
+            return Response({'error': '获取场内份额失败'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def accuracy(self, request, fund_code=None):

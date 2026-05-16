@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Table, Input, Button, Space, message, Typography, Modal, Select, List, Grid, Pagination } from 'antd';
+import { Card, Table, Input, Button, Space, message, Typography, Modal, Select, List, Grid, Pagination, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { SearchOutlined, EyeOutlined, StarOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Resizable } from 'react-resizable';
@@ -258,7 +258,11 @@ const FundsPage = () => {
       },
     },
     {
-      title: '实时估值',
+      title: (
+        <span>
+          实时估值 <Tag color="orange" style={{ fontSize: '10px', marginLeft: 2 }}>EST</Tag>
+        </span>
+      ),
       dataIndex: 'fund_code',
       key: 'estimate_nav',
       width: columnWidths.estimate_nav,
@@ -276,7 +280,11 @@ const FundsPage = () => {
       },
     },
     {
-      title: '涨跌',
+      title: (
+        <span>
+          涨跌 <Tag color="orange" style={{ fontSize: '10px', marginLeft: 2 }}>EST</Tag>
+        </span>
+      ),
       dataIndex: 'fund_code',
       key: 'estimate_growth',
       width: columnWidths.estimate_growth,

@@ -12,6 +12,7 @@ import AccountsPage from './pages/AccountsPage';
 import PositionsPage from './pages/PositionsPage';
 import WatchlistsPage from './pages/WatchlistsPage';
 import SettingsPage from './pages/SettingsPage';
+import DataBrowserPage from './pages/DataBrowserPage';
 import { isAuthenticated } from './utils/auth';
 import { AuthProvider } from './contexts/AuthContext';
 import { AccountProvider } from './contexts/AccountContext';
@@ -125,6 +126,16 @@ function App() {
                   <PrivateRoute>
                     <MainLayout>
                       <SettingsPage />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/dashboard/data-browser"
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <DataBrowserPage />
                     </MainLayout>
                   </PrivateRoute>
                 }

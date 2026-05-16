@@ -12,11 +12,13 @@ import {
   message,
   Button,
   Table,
+  Tag,
 } from 'antd';
 import { RobotOutlined, SyncOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { fundsAPI, positionsAPI } from '../api';
 import AIAnalysisModal from '../components/AIAnalysisModal';
+import IntradayChart from '../components/IntradayChart';
 import { usePreference } from '../contexts/PreferenceContext';
 
 const FundDetailPage = () => {
@@ -26,6 +28,7 @@ const FundDetailPage = () => {
   const [fund, setFund] = useState(null);
   const [estimate, setEstimate] = useState(null);
   const [marketQuote, setMarketQuote] = useState(null);
+  const [marketShare, setMarketShare] = useState(null);
   const [navHistory, setNavHistory] = useState([]);
   const [accuracy, setAccuracy] = useState(null);
   const [positions, setPositions] = useState([]);
@@ -188,18 +191,20 @@ const FundDetailPage = () => {
       setLoading(true);
 
       try {
-        // 并发加载基金详情、指定源估值、准确率历史和场内价格
-        const [detailRes, estimateRes, accuracyRes, marketRes] = await Promise.all([
+        // 并发加载基金详情、指定源估值、准确率历史、场内价格和场内份额
+        const [detailRes, estimateRes, accuracyRes, marketRes, shareRes] = await Promise.all([
           fundsAPI.detail(code),
           fundsAPI.getEstimate(code, preferredSource).catch(() => null),
           fundsAPI.getAccuracy(code).catch(() => null),
-          fundsAPI.marketQuote(code).catch(() => null)
+          fundsAPI.marketQuote(code).catch(() => null),
+          fundsAPI.marketShare(code).catch(() => null)
         ]);
 
         setFund(detailRes.data);
         setEstimate(estimateRes?.data || null);
         setAccuracy(accuracyRes?.data || null);
         setMarketQuote(marketRes?.data || null);
+        setMarketShare(shareRes?.data || null);
 
         // 加载成分股（指数/ETF 基金）
         loadHoldings(detailRes.data?.fund_type);
@@ -344,7 +349,11 @@ const FundDetailPage = () => {
           </Col>
           <Col xs={12} sm={6} md={4}>
             <Statistic
-              title="实时估值"
+              title={
+                <span>
+                  实时估值 <Tag color="orange" style={{ fontSize: '10px', marginLeft: 4 }}>EST</Tag>
+                </span>
+              }
               value={estimate?.estimate_nav || '-'}
               precision={estimate?.estimate_nav ? 4 : 0}
               prefix={estimate?.estimate_nav ? '¥' : ''}
@@ -353,7 +362,11 @@ const FundDetailPage = () => {
           </Col>
           <Col xs={12} sm={6} md={4}>
             <Statistic
-              title="估算涨跌"
+              title={
+                <span>
+                  估算涨跌 <Tag color="orange" style={{ fontSize: '10px', marginLeft: 4 }}>EST</Tag>
+                </span>
+              }
               value={estimate?.estimate_growth || '-'}
               precision={estimate?.estimate_growth ? 2 : 0}
               suffix={estimate?.estimate_growth ? '%' : ''}
@@ -400,7 +413,40 @@ const FundDetailPage = () => {
             />
           </Col>
         </Row>
+
+        {marketShare && (
+          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+            <Col xs={12} sm={6} md={4}>
+              <Statistic
+                title="场内份额（万份）"
+                value={marketShare.market_share || '-'}
+                valueStyle={{ fontSize: '18px' }}
+              />
+            </Col>
+            <Col xs={12} sm={6} md={4}>
+              <Statistic
+                title="日增份额（万份）"
+                value={marketShare.daily_share_change || '-'}
+                valueStyle={{
+                  color: (marketShare.daily_share_change || 0) >= 0 ? '#cf1322' : '#3f8600',
+                  fontSize: '18px'
+                }}
+                prefix={(marketShare.daily_share_change || 0) > 0 ? '+' : ''}
+              />
+            </Col>
+            <Col xs={12} sm={6} md={4}>
+              <Statistic
+                title="份额日期"
+                value={marketShare.market_share_date ? marketShare.market_share_date.slice(5) : '-'}
+                valueStyle={{ fontSize: '18px' }}
+              />
+            </Col>
+          </Row>
+        )}
       </Card>
+
+      {/* 分时图 */}
+      <IntradayChart fundCode={code} />
 
       {/* 历史估值卡片 */}
       <Card title="历史估值记录">

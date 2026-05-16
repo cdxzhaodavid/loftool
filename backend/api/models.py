@@ -40,6 +40,20 @@ class Fund(models.Model):
         help_text='估值更新时间'
     )
 
+    # 场内数据
+    market_share = models.BigIntegerField(
+        null=True, blank=True,
+        help_text='场内份额（万份）'
+    )
+    market_share_date = models.DateField(
+        null=True, blank=True,
+        help_text='场内份额日期'
+    )
+    daily_share_change = models.BigIntegerField(
+        null=True, blank=True,
+        help_text='日增份额（万份）'
+    )
+
     # 元数据
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

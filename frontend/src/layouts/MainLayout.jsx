@@ -9,6 +9,7 @@ import {
   LogoutOutlined,
   SettingOutlined,
   GithubOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 import Footer from '../components/Footer';
@@ -45,6 +46,11 @@ const MainLayout = ({ children }) => {
       key: '/dashboard/funds',
       icon: <FundOutlined />,
       label: isMobile ? '基金' : '基金查询',
+    },
+    {
+      key: '/dashboard/data-browser',
+      icon: <DatabaseOutlined />,
+      label: isMobile ? '数据' : '数据浏览',
     },
     {
       key: '/dashboard/settings',

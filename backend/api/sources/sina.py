@@ -2,7 +2,7 @@ import requests
 import re
 import logging
 from decimal import Decimal
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional, Dict, List
 
 from .base import BaseEstimateSource
@@ -13,6 +13,7 @@ class SinaStockSource(BaseEstimateSource):
     """新浪财经股票/ETF实时行情"""
     
     BASE_URL = 'http://hq.sinajs.cn/list={symbol}'
+    INTRADAY_URL = 'http://market.finance.sina.com.cn/downxls.php?date={date}&symbol={symbol}'
     
     def get_source_name(self) -> str:
         return 'sina'
@@ -90,4 +91,108 @@ class SinaStockSource(BaseEstimateSource):
             }
         except Exception as e:
             logger.error(f"Sina fetch error for {fund_code}: {e}")
+            return None
+
+    def fetch_intraday_data(self, fund_code: str, query_date: str = None) -> Optional[Dict]:
+        """
+        获取分时数据（支持盘后访问历史数据）
+        
+        Args:
+            fund_code: 基金代码
+            query_date: 查询日期，格式 YYYY-MM-DD，不传则获取当日数据
+        
+        Returns:
+            dict: {
+                'fund_code': str,
+                'date': str,
+                'times': list,     # 时间列表 ['09:30', '09:31', ...]
+                'prices': list,    # 价格列表
+                'volumes': list,   # 成交量列表（手）
+                'amounts': list,   # 成交额列表（元）
+                'avg_prices': list # 均价列表
+            }
+        """
+        try:
+            # 判断市场：上海 50/51/52/56/58/6x，深圳 15/16/18/其他
+            if fund_code.startswith(('50', '51', '52', '56', '58')):
+                symbol_prefix = 'sh'
+            elif fund_code.startswith(('15', '16', '18')):
+                symbol_prefix = 'sz'
+            else:
+                symbol_prefix = 'sh' if fund_code.startswith('6') else 'sz'
+            symbol = f'{symbol_prefix}{fund_code}'
+            
+            # 默认使用当日日期
+            if not query_date:
+                query_date = date.today().strftime('%Y-%m-%d')
+            
+            headers = {
+                'Referer': 'http://finance.sina.com.cn',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            url = self.INTRADAY_URL.format(date=query_date, symbol=symbol)
+            response = requests.get(url, headers=headers, timeout=15)
+            response.encoding = 'gbk'
+            
+            text = response.text
+            if not text or text.startswith('<html') or 'error' in text.lower():
+                logger.warning(f"Intraday data not available for {fund_code} on {query_date}")
+                return None
+            
+            lines = text.strip().split('\n')
+            if len(lines) < 2:
+                return None
+            
+            # 解析表头
+            headers_line = lines[0]
+            headers = [h.strip() for h in headers_line.split('\t')]
+            
+            times = []
+            prices = []
+            volumes = []
+            amounts = []
+            avg_prices = []
+            
+            # 解析数据行
+            for line in lines[1:]:
+                if not line.strip():
+                    continue
+                parts = line.split('\t')
+                if len(parts) >= 5:
+                    time_str = parts[0].strip()
+                    try:
+                        price = Decimal(parts[1].strip())
+                        volume = int(parts[2].strip())
+                        amount = Decimal(parts[3].strip())
+                        avg_price = Decimal(parts[4].strip())
+                        
+                        times.append(time_str)
+                        prices.append(price)
+                        volumes.append(volume)
+                        amounts.append(amount)
+                        avg_prices.append(avg_price)
+                    except (ValueError, IndexError) as e:
+                        logger.debug(f"Skipping invalid line: {line}")
+                        continue
+            
+            if not times:
+                return None
+            
+            return {
+                'fund_code': fund_code,
+                'date': query_date,
+                'times': times,
+                'prices': [str(p) for p in prices],
+                'volumes': volumes,
+                'amounts': [str(a) for a in amounts],
+                'avg_prices': [str(p) for p in avg_prices],
+                'symbol': symbol
+            }
+            
+        except requests.RequestException as e:
+            logger.error(f"Sina intraday fetch network error for {fund_code}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Sina intraday fetch error for {fund_code}: {e}")
             return None

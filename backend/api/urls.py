@@ -31,6 +31,11 @@ urlpatterns = [
     path('auth/me', views.get_current_user, name='get_current_user'),
     path('auth/password', views.change_password, name='change_password'),
 
+    # 数据库浏览
+    path('admin/database/tables/', views.database_tables, name='database_tables'),
+    path('admin/database/tables/<str:table_name>/', views.table_data, name='table_data'),
+    path('admin/database/summary/', views.database_summary, name='database_summary'),
+
     # 持仓操作（单独路由）
     path('positions/operations/', viewsets.PositionOperationViewSet.as_view({
         'get': 'list',
