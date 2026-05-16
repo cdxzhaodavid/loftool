@@ -48,6 +48,7 @@ const LofFundsPage = () => {
     fund_code: 80,
     fund_name: 200,
     close_price: 100,
+    vst_nav: 100,
     estimate_nav: 100,
     unit_nav: 100,
     premium: 80,
@@ -221,6 +222,26 @@ const LofFundsPage = () => {
     {
       title: (
         <span>
+          收盘VST <Tag color="green" style={{ fontSize: '10px', marginLeft: 2 }}>15:00</Tag>
+        </span>
+      ),
+      dataIndex: 'vst_nav',
+      key: 'vst_nav',
+      width: columnWidths.vst_nav,
+      responsive: ['md'],
+      resizable: true,
+      onHeaderCell: (column) => ({
+        width: column.width,
+        onResize: handleResize('vst_nav'),
+      }),
+      render: (nav) => {
+        if (!nav) return '-';
+        return <span>¥{parseFloat(nav).toFixed(4)}</span>;
+      },
+    },
+    {
+      title: (
+        <span>
           估值净值 <Tag color="orange" style={{ fontSize: '10px', marginLeft: 2 }}>EST</Tag>
         </span>
       ),
@@ -368,23 +389,37 @@ const LofFundsPage = () => {
     if (!selectedFund || historyData.length === 0) return {};
 
     const dates = historyData.map(item => item.nav_date);
-    const navs = historyData.map(item => parseFloat(item.unit_nav));
-    const estimates = historyData.map(item => {
-      if (!item.estimate_nav) return null;
-      return parseFloat(item.estimate_nav);
+    const closePrices = historyData.map(item => item.close_price ? parseFloat(item.close_price) : null);
+    const vstNavs = historyData.map(item => item.vst_nav ? parseFloat(item.vst_nav) : null);
+    const unitNavs = historyData.map(item => parseFloat(item.unit_nav));
+    const estimateErrors = historyData.map(item => {
+      if (!item.estimate_nav || !item.unit_nav) return null;
+      return ((parseFloat(item.estimate_nav) - parseFloat(item.unit_nav)) / parseFloat(item.unit_nav) * 100);
     });
 
     return {
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'cross' },
+        axisPointer: { 
+          type: 'cross',
+          crossStyle: { color: '#999' }
+        },
         formatter: (params) => {
           let result = `<div style="font-weight:bold;margin-bottom:8px;">${params[0].axisValue}</div>`;
           params.forEach(param => {
             if (param.value !== null && param.value !== undefined) {
+              let displayValue = param.value;
+              let suffix = '';
+              if (param.seriesName === '估值误差') {
+                suffix = '%';
+                displayValue = param.value.toFixed(2);
+              } else {
+                displayValue = param.value.toFixed(4);
+                suffix = '';
+              }
               result += `<div style="display:flex;justify-content:space-between;gap:20px;margin:4px 0;">
                 <span>${param.marker}${param.seriesName}:</span>
-                <span style="font-weight:bold;">¥${param.value.toFixed(4)}</span>
+                <span style="font-weight:bold;">${suffix ? '' : '¥'}${displayValue}${suffix}</span>
               </div>`;
             }
           });
@@ -392,49 +427,102 @@ const LofFundsPage = () => {
         }
       },
       legend: {
-        data: ['单位净值', '估值净值'],
+        data: ['收盘价', '收盘VST', '单位净值', '估值误差'],
         top: 10
       },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '10%',
-        top: '15%',
-        containLabel: true
-      },
-      xAxis: {
-        type: 'category',
-        data: dates,
-        axisLabel: {
-          rotate: window.innerWidth < 768 ? 45 : 0,
-          fontSize: 10
+      grid: [
+        {
+          left: '3%',
+          right: '4%',
+          bottom: '25%',
+          top: '15%',
+          containLabel: true
+        },
+        {
+          left: '3%',
+          right: '4%',
+          bottom: '5%',
+          height: '15%',
+          containLabel: true
         }
-      },
-      yAxis: {
-        type: 'value',
-        scale: true,
-        axisLabel: {
-          formatter: (value) => value.toFixed(4)
+      ],
+      xAxis: [
+        {
+          type: 'category',
+          data: dates,
+          axisLabel: {
+            rotate: window.innerWidth < 768 ? 45 : 0,
+            fontSize: 10
+          },
+          axisPointer: { type: 'shadow' }
+        },
+        {
+          type: 'category',
+          gridIndex: 1,
+          data: dates,
+          axisLabel: { show: false }
         }
-      },
+      ],
+      yAxis: [
+        {
+          type: 'value',
+          scale: true,
+          axisLabel: {
+            formatter: (value) => '¥' + value.toFixed(4)
+          },
+          splitLine: { show: true }
+        },
+        {
+          type: 'value',
+          gridIndex: 1,
+          axisLabel: {
+            formatter: (value) => value.toFixed(2) + '%'
+          },
+          splitLine: { show: false }
+        }
+      ],
       series: [
         {
-          name: '单位净值',
+          name: '收盘价',
           type: 'line',
-          data: navs,
+          data: closePrices,
           smooth: true,
           lineStyle: { color: '#1890ff', width: 2 },
           symbol: 'circle',
           symbolSize: 4
         },
         {
-          name: '估值净值',
+          name: '收盘VST',
           type: 'line',
-          data: estimates,
+          data: vstNavs,
           smooth: true,
           lineStyle: { color: '#fa8c16', width: 2, type: 'dashed' },
           symbol: 'circle',
           symbolSize: 4
+        },
+        {
+          name: '单位净值',
+          type: 'line',
+          data: unitNavs,
+          smooth: true,
+          lineStyle: { color: '#3f8600', width: 2 },
+          symbol: 'circle',
+          symbolSize: 4
+        },
+        {
+          name: '估值误差',
+          type: 'bar',
+          xAxisIndex: 1,
+          yAxisIndex: 1,
+          data: estimateErrors,
+          itemStyle: {
+            color: (params) => {
+              const value = params.value;
+              if (value === null || value === undefined) return '#ccc';
+              return value >= 0 ? '#ef4444' : '#22c55e';
+            }
+          },
+          barWidth: '60%'
         }
       ]
     };
