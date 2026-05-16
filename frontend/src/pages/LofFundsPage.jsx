@@ -1,37 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Card, Table, Input, Button, Space, message, Typography, Tag, Pagination, Row, Col, Statistic } from 'antd';
-import { SearchOutlined, EyeOutlined, TrendingUpOutlined, TrendingDownOutlined, BarChart3Outlined } from '@ant-design/icons';
-import { Resizable } from 'react-resizable';
-import 'react-resizable/css/styles.css';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Input, Button, message, Typography, Tag, Pagination, Card, Row, Col, Statistic, Modal } from 'antd';
+import { SearchOutlined, EyeOutlined, TrendingUpOutlined, TrendingDownOutlined, BarChart3Outlined, XOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { fundsAPI } from '../api';
 
-const { Text } = Typography;
-
-const ResizableTitle = (props) => {
-  const { onResize, width, ...restProps } = props;
-
-  if (!width) {
-    return <th {...restProps} />;
-  }
-
-  return (
-    <Resizable
-      width={width}
-      height={0}
-      handle={
-        <span
-          className="react-resizable-handle"
-          onClick={(e) => e.stopPropagation()}
-        />
-      }
-      onResize={onResize}
-      draggableOpts={{ enableUserSelectHack: false }}
-    >
-      <th {...restProps} />
-    </Resizable>
-  );
-};
+const { Title, Text } = Typography;
 
 const LofFundsPage = () => {
   const [loading, setLoading] = useState(false);
@@ -42,28 +15,8 @@ const LofFundsPage = () => {
   const [selectedFund, setSelectedFund] = useState(null);
   const [historyData, setHistoryData] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const pageSize = 10;
-
-  const [columnWidths, setColumnWidths] = useState({
-    fund_code: 80,
-    fund_name: 200,
-    close_price: 100,
-    vst_nav: 100,
-    estimate_nav: 100,
-    unit_nav: 100,
-    premium: 80,
-    market_share: 120,
-    daily_share_change: 120,
-    estimate_error: 80,
-    action: 60,
-  });
-
-  const handleResize = (key) => (e, { size }) => {
-    setColumnWidths((prev) => ({
-      ...prev,
-      [key]: size.width,
-    }));
-  };
+  const [modalVisible, setModalVisible] = useState(false);
+  const pageSize = 15;
 
   const loadLofFunds = async (searchValue = search, pageNum = page) => {
     setLoading(true);
@@ -117,9 +70,8 @@ const LofFundsPage = () => {
       }
       
       setSelectedFund(fund);
-      
-      // 加载历史数据
       await loadHistoryData(fundCode);
+      setModalVisible(true);
     } catch (error) {
       message.error('加载基金详情失败');
     }
@@ -134,7 +86,6 @@ const LofFundsPage = () => {
       
       const startDateStr = startDate.toISOString().split('T')[0];
       
-      // 同步历史数据
       try {
         await fundsAPI.syncNavHistory([fundCode], startDateStr, now.toISOString().split('T')[0]);
       } catch (e) {
@@ -178,248 +129,49 @@ const LofFundsPage = () => {
     return ((cp - nv) / nv) * 100;
   };
 
-  const columns = [
-    {
-      title: '代码',
-      dataIndex: 'fund_code',
-      key: 'fund_code',
-      width: columnWidths.fund_code,
-      responsive: ['sm'],
-      resizable: true,
-      onHeaderCell: (column) => ({
-        width: column.width,
-        onResize: handleResize('fund_code'),
-      }),
-    },
-    {
-      title: '基金名称',
-      dataIndex: 'fund_name',
-      key: 'fund_name',
-      width: columnWidths.fund_name,
-      ellipsis: true,
-      resizable: true,
-      onHeaderCell: (column) => ({
-        width: column.width,
-        onResize: handleResize('fund_name'),
-      }),
-    },
-    {
-      title: '收盘价',
-      dataIndex: 'close_price',
-      key: 'close_price',
-      width: columnWidths.close_price,
-      responsive: ['sm'],
-      resizable: true,
-      onHeaderCell: (column) => ({
-        width: column.width,
-        onResize: handleResize('close_price'),
-      }),
-      render: (price) => {
-        if (!price) return '-';
-        return <span>¥{parseFloat(price).toFixed(4)}</span>;
-      },
-    },
-    {
-      title: (
-        <span>
-          收盘VST <Tag color="green" style={{ fontSize: '10px', marginLeft: 2 }}>15:00</Tag>
-        </span>
-      ),
-      dataIndex: 'vst_nav',
-      key: 'vst_nav',
-      width: columnWidths.vst_nav,
-      responsive: ['md'],
-      resizable: true,
-      onHeaderCell: (column) => ({
-        width: column.width,
-        onResize: handleResize('vst_nav'),
-      }),
-      render: (nav) => {
-        if (!nav) return '-';
-        return <span>¥{parseFloat(nav).toFixed(4)}</span>;
-      },
-    },
-    {
-      title: (
-        <span>
-          估值净值 <Tag color="orange" style={{ fontSize: '10px', marginLeft: 2 }}>EST</Tag>
-        </span>
-      ),
-      dataIndex: 'estimate_nav',
-      key: 'estimate_nav',
-      width: columnWidths.estimate_nav,
-      responsive: ['md'],
-      resizable: true,
-      onHeaderCell: (column) => ({
-        width: column.width,
-        onResize: handleResize('estimate_nav'),
-      }),
-      render: (nav) => {
-        if (!nav) return '-';
-        return <span>¥{parseFloat(nav).toFixed(4)}</span>;
-      },
-    },
-    {
-      title: '单位净值',
-      dataIndex: 'latest_nav',
-      key: 'unit_nav',
-      width: columnWidths.unit_nav,
-      responsive: ['sm'],
-      resizable: true,
-      onHeaderCell: (column) => ({
-        width: column.width,
-        onResize: handleResize('unit_nav'),
-      }),
-      render: (nav, record) => {
-        if (!nav) return '-';
-        const date = record.latest_nav_date;
-        const dateStr = date ? `(${date.slice(5)})` : '';
-        return (
-          <span>
-            ¥{parseFloat(nav).toFixed(4)}
-            <Text type="secondary" style={{ fontSize: '10px', marginLeft: 2 }}>{dateStr}</Text>
-          </span>
-        );
-      },
-    },
-    {
-      title: '溢价率',
-      dataIndex: 'fund_code',
-      key: 'premium',
-      width: columnWidths.premium,
-      responsive: ['md'],
-      resizable: true,
-      onHeaderCell: (column) => ({
-        width: column.width,
-        onResize: handleResize('premium'),
-      }),
-      render: (code, record) => {
-        const premium = calculatePremium(record.close_price, record.latest_nav);
-        if (premium === null) return '-';
-        const color = premium >= 0 ? '#cf1322' : '#3f8600';
-        const prefix = premium >= 0 ? '+' : '';
-        return (
-          <Text strong style={{ color, fontSize: '12px' }}>
-            {prefix}{premium.toFixed(2)}%
-          </Text>
-        );
-      },
-    },
-    {
-      title: '场内份额(万份)',
-      dataIndex: 'market_share',
-      key: 'market_share',
-      width: columnWidths.market_share,
-      responsive: ['lg'],
-      resizable: true,
-      onHeaderCell: (column) => ({
-        width: column.width,
-        onResize: handleResize('market_share'),
-      }),
-      render: (share) => {
-        if (!share) return '-';
-        return <span>{parseFloat(share).toLocaleString()}</span>;
-      },
-    },
-    {
-      title: '份额变化(万份)',
-      dataIndex: 'daily_share_change',
-      key: 'daily_share_change',
-      width: columnWidths.daily_share_change,
-      responsive: ['lg'],
-      resizable: true,
-      onHeaderCell: (column) => ({
-        width: column.width,
-        onResize: handleResize('daily_share_change'),
-      }),
-      render: (change) => {
-        if (change === null || change === undefined) return '-';
-        const numChange = parseFloat(change);
-        const color = numChange >= 0 ? '#cf1322' : '#3f8600';
-        const prefix = numChange >= 0 ? '+' : '';
-        return (
-          <Text strong style={{ color, fontSize: '12px' }}>
-            {prefix}{numChange.toLocaleString()}
-          </Text>
-        );
-      },
-    },
-    {
-      title: '估值误差',
-      dataIndex: 'fund_code',
-      key: 'estimate_error',
-      width: columnWidths.estimate_error,
-      responsive: ['lg'],
-      resizable: true,
-      onHeaderCell: (column) => ({
-        width: column.width,
-        onResize: handleResize('estimate_error'),
-      }),
-      render: (code, record) => {
-        if (!record.estimate_nav || !record.latest_nav) return '-';
-        const est = parseFloat(record.estimate_nav);
-        const nav = parseFloat(record.latest_nav);
-        if (nav === 0) return '-';
-        const error = ((est - nav) / nav) * 100;
-        const color = Math.abs(error) < 0.5 ? '#52c41a' : (Math.abs(error) < 1 ? '#faad14' : '#ff4d4f');
-        return (
-          <Text strong style={{ color, fontSize: '12px' }}>
-            {error >= 0 ? '+' : ''}{error.toFixed(2)}%
-          </Text>
-        );
-      },
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: columnWidths.action,
-      fixed: 'right',
-      render: (_, record) => (
-        <Button
-          type="link"
-          size="small"
-          icon={<EyeOutlined />}
-          onClick={() => handleViewDetail(record.fund_code)}
-        />
-      ),
-    },
-  ];
+  const calculateError = (estimateNav, nav) => {
+    if (!estimateNav || !nav) return null;
+    const en = parseFloat(estimateNav);
+    const nv = parseFloat(nav);
+    if (nv === 0) return null;
+    return ((en - nv) / nv) * 100;
+  };
 
-  const chartOption = useMemo(() => {
+  const mainChartOption = useMemo(() => {
     if (!selectedFund || historyData.length === 0) return {};
 
     const dates = historyData.map(item => item.nav_date);
     const closePrices = historyData.map(item => item.close_price ? parseFloat(item.close_price) : null);
     const vstNavs = historyData.map(item => item.vst_nav ? parseFloat(item.vst_nav) : null);
     const unitNavs = historyData.map(item => parseFloat(item.unit_nav));
-    const estimateErrors = historyData.map(item => {
-      if (!item.estimate_nav || !item.unit_nav) return null;
-      return ((parseFloat(item.estimate_nav) - parseFloat(item.unit_nav)) / parseFloat(item.unit_nav) * 100);
+    const premiums = historyData.map(item => {
+      if (!item.close_price || !item.unit_nav) return null;
+      return calculatePremium(item.close_price, item.unit_nav);
     });
 
     return {
+      backgroundColor: 'transparent',
       tooltip: {
         trigger: 'axis',
-        axisPointer: { 
-          type: 'cross',
-          crossStyle: { color: '#999' }
-        },
+        axisPointer: { type: 'cross', crossStyle: { color: '#4d6480' } },
+        backgroundColor: 'rgba(15, 22, 35, 0.95)',
+        borderColor: '#253550',
+        textStyle: { color: '#e2eaf6' },
         formatter: (params) => {
           let result = `<div style="font-weight:bold;margin-bottom:8px;">${params[0].axisValue}</div>`;
           params.forEach(param => {
             if (param.value !== null && param.value !== undefined) {
               let displayValue = param.value;
               let suffix = '';
-              if (param.seriesName === '估值误差') {
+              if (param.seriesName === '折溢价率') {
                 suffix = '%';
                 displayValue = param.value.toFixed(2);
               } else {
                 displayValue = param.value.toFixed(4);
-                suffix = '';
               }
               result += `<div style="display:flex;justify-content:space-between;gap:20px;margin:4px 0;">
                 <span>${param.marker}${param.seriesName}:</span>
-                <span style="font-weight:bold;">${suffix ? '' : '¥'}${displayValue}${suffix}</span>
+                <span style="font-weight:bold;color:#e2eaf6;">${param.seriesName === '折溢价率' ? '' : '¥'}${displayValue}${suffix}</span>
               </div>`;
             }
           });
@@ -427,342 +179,927 @@ const LofFundsPage = () => {
         }
       },
       legend: {
-        data: ['收盘价', '收盘VST', '单位净值', '估值误差'],
-        top: 10
+        data: ['场内收盘价', '收盘估值', '公布净值', '折溢价率'],
+        top: 10,
+        textStyle: { color: '#8fa3c0', fontSize: 12 },
+        itemWidth: 14,
+        itemHeight: 14
       },
       grid: [
         {
           left: '3%',
           right: '4%',
-          bottom: '25%',
-          top: '15%',
-          containLabel: true
-        },
-        {
-          left: '3%',
-          right: '4%',
-          bottom: '5%',
-          height: '15%',
+          bottom: '22%',
+          top: '18%',
           containLabel: true
         }
       ],
-      xAxis: [
-        {
-          type: 'category',
-          data: dates,
-          axisLabel: {
-            rotate: window.innerWidth < 768 ? 45 : 0,
-            fontSize: 10
-          },
-          axisPointer: { type: 'shadow' }
-        },
-        {
-          type: 'category',
-          gridIndex: 1,
-          data: dates,
-          axisLabel: { show: false }
-        }
-      ],
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLine: { lineStyle: { color: '#1e2d47' } },
+        axisLabel: { color: '#8fa3c0', fontSize: 10, rotate: 45 },
+        splitLine: { show: false }
+      },
       yAxis: [
         {
           type: 'value',
           scale: true,
-          axisLabel: {
-            formatter: (value) => '¥' + value.toFixed(4)
-          },
-          splitLine: { show: true }
+          axisLine: { lineStyle: { color: '#1e2d47' } },
+          axisLabel: { color: '#8fa3c0', fontSize: 11, formatter: (v) => '¥' + v.toFixed(4) },
+          splitLine: { lineStyle: { color: '#1e2d47', type: 'dashed' } }
         },
         {
           type: 'value',
-          gridIndex: 1,
-          axisLabel: {
-            formatter: (value) => value.toFixed(2) + '%'
-          },
+          scale: true,
+          position: 'right',
+          axisLine: { show: false },
+          axisLabel: { color: '#f0a500', fontSize: 11, formatter: (v) => v.toFixed(2) + '%' },
           splitLine: { show: false }
         }
       ],
       series: [
         {
-          name: '收盘价',
+          name: '场内收盘价',
           type: 'line',
           data: closePrices,
           smooth: true,
-          lineStyle: { color: '#1890ff', width: 2 },
+          lineStyle: { color: '#f0524f', width: 2 },
           symbol: 'circle',
-          symbolSize: 4
+          symbolSize: 5,
+          itemStyle: { color: '#f0524f' }
         },
         {
-          name: '收盘VST',
+          name: '收盘估值',
           type: 'line',
           data: vstNavs,
           smooth: true,
-          lineStyle: { color: '#fa8c16', width: 2, type: 'dashed' },
+          lineStyle: { color: '#4d9de0', width: 2, type: 'dashed' },
           symbol: 'circle',
-          symbolSize: 4
+          symbolSize: 5,
+          itemStyle: { color: '#4d9de0' }
         },
         {
-          name: '单位净值',
+          name: '公布净值',
           type: 'line',
           data: unitNavs,
           smooth: true,
-          lineStyle: { color: '#3f8600', width: 2 },
+          lineStyle: { color: '#36b37e', width: 2 },
           symbol: 'circle',
-          symbolSize: 4
+          symbolSize: 5,
+          itemStyle: { color: '#36b37e' }
         },
         {
-          name: '估值误差',
-          type: 'bar',
-          xAxisIndex: 1,
+          name: '折溢价率',
+          type: 'line',
           yAxisIndex: 1,
-          data: estimateErrors,
-          itemStyle: {
-            color: (params) => {
-              const value = params.value;
-              if (value === null || value === undefined) return '#ccc';
-              return value >= 0 ? '#ef4444' : '#22c55e';
-            }
-          },
-          barWidth: '60%'
+          data: premiums,
+          smooth: true,
+          lineStyle: { color: '#f0a500', width: 1.5 },
+          symbol: 'circle',
+          symbolSize: 4,
+          itemStyle: { color: '#f0a500' }
         }
       ]
     };
   }, [selectedFund, historyData]);
 
-  return (
-    <Space direction="vertical" style={{ width: '100%' }} size="large">
-      {/* LOF基金列表 */}
-      <Card
-        title={
-          <span>
-            <BarChart3Outlined style={{ marginRight: 8 }} />
-            LOF基金列表
-          </span>
+  const premiumChartOption = useMemo(() => {
+    if (!selectedFund || historyData.length === 0) return {};
+
+    const dates = historyData.map(item => item.nav_date);
+    const premiums = historyData.map(item => {
+      if (!item.close_price || !item.unit_nav) return null;
+      return calculatePremium(item.close_price, item.unit_nav);
+    });
+
+    return {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(15, 22, 35, 0.95)',
+        borderColor: '#253550',
+        textStyle: { color: '#e2eaf6' },
+        formatter: (params) => {
+          const val = params[0].value;
+          return `<div style="font-weight:bold;margin-bottom:4px;">${params[0].axisValue}</div>
+                  <div style="color:${val >= 0 ? '#f0524f' : '#36b37e'}">折溢价率: ${val !== null ? val.toFixed(2) : '--'}%</div>`;
         }
-      >
-        <Space style={{ width: '100%', marginBottom: 16 }}>
-          <Input.Search
-            placeholder="搜索基金名称或代码"
-            allowClear
-            enterButton={<SearchOutlined />}
-            size="large"
-            onSearch={handleSearch}
-            onChange={(e) => {
-              if (!e.target.value) {
-                handleSearch('');
-              }
-            }}
-            style={{ width: '100%' }}
-          />
-        </Space>
-
-        <Table
-          columns={columns}
-          dataSource={funds}
-          rowKey="fund_code"
-          loading={loading}
-          scroll={{ x: 'max-content' }}
-          components={{
-            header: {
-              cell: ResizableTitle,
-            },
-          }}
-          pagination={{
-            current: page,
-            pageSize: pageSize,
-            total: total,
-            onChange: handlePageChange,
-            showSizeChanger: false,
-            showTotal: (total) => `共 ${total} 条`,
-          }}
-        />
-      </Card>
-
-      {/* 基金详情和图表 */}
-      {selectedFund && (
-        <Card
-          title={`${selectedFund.fund_code} - ${selectedFund.fund_name}`}
-          extra={
-            <Button
-              type="primary"
-              onClick={() => setSelectedFund(null)}
-            >
-              返回列表
-            </Button>
+      },
+      grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLine: { lineStyle: { color: '#1e2d47' } },
+        axisLabel: { color: '#8fa3c0', fontSize: 10, rotate: 45 },
+        splitLine: { show: false }
+      },
+      yAxis: {
+        type: 'value',
+        axisLine: { lineStyle: { color: '#1e2d47' } },
+        axisLabel: { color: '#8fa3c0', fontSize: 11, formatter: (v) => v.toFixed(2) + '%' },
+        splitLine: { lineStyle: { color: '#1e2d47', type: 'dashed' } }
+      },
+      series: [{
+        name: '折溢价率',
+        type: 'bar',
+        data: premiums.map((val, idx) => ({
+          value: val,
+          itemStyle: {
+            color: val >= 0 ? '#f0524f' : '#36b37e',
+            borderRadius: [2, 2, 0, 0]
           }
-        >
-          {/* 统计数据 */}
-          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col xs={12} sm={6} md={4}>
-              <Statistic
-                title="收盘价"
-                value={selectedFund.close_price || '-'}
-                precision={selectedFund.close_price ? 4 : 0}
-                prefix="¥"
-                valueStyle={{ color: '#333' }}
-              />
-            </Col>
-            <Col xs={12} sm={6} md={4}>
-              <Statistic
-                title="单位净值"
-                value={selectedFund.latest_nav || '-'}
-                precision={selectedFund.latest_nav ? 4 : 0}
-                prefix="¥"
-                suffix={selectedFund.latest_nav_date ? ` (${selectedFund.latest_nav_date.slice(5)})` : ''}
-                valueStyle={{ color: '#1890ff' }}
-              />
-            </Col>
-            <Col xs={12} sm={6} md={4}>
-              <Statistic
-                title="估值净值"
-                value={selectedFund.estimate_nav || '-'}
-                precision={selectedFund.estimate_nav ? 4 : 0}
-                prefix="¥"
-                valueStyle={{ color: '#fa8c16' }}
-              />
-            </Col>
-            <Col xs={12} sm={6} md={4}>
-              <Statistic
-                title="溢价率"
-                value={calculatePremium(selectedFund.close_price, selectedFund.latest_nav) || '-'}
-                precision={calculatePremium(selectedFund.close_price, selectedFund.latest_nav) !== null ? 2 : 0}
-                suffix="%"
-                valueStyle={{ 
-                  color: calculatePremium(selectedFund.close_price, selectedFund.latest_nav) >= 0 ? '#cf1322' : '#3f8600' 
-                }}
-              />
-            </Col>
-            <Col xs={12} sm={6} md={4}>
-              <Statistic
-                title="场内份额(万份)"
-                value={selectedFund.market_share || '-'}
-                valueStyle={{ color: '#333' }}
-              />
-            </Col>
-            <Col xs={12} sm={6} md={4}>
-              <Statistic
-                title="份额变化(万份)"
-                value={selectedFund.daily_share_change || '-'}
-                prefix={selectedFund.daily_share_change > 0 ? '+' : ''}
-                valueStyle={{ 
-                  color: selectedFund.daily_share_change >= 0 ? '#cf1322' : '#3f8600' 
-                }}
-              />
-            </Col>
-          </Row>
+        })),
+        barWidth: '50%'
+      }]
+    };
+  }, [selectedFund, historyData]);
 
-          {/* 场内价格涨跌幅 */}
-          {selectedFund.market_change !== undefined && (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              marginBottom: 24,
-              padding: 16,
-              backgroundColor: parseFloat(selectedFund.market_change) >= 0 ? 'rgba(207, 19, 34, 0.05)' : 'rgba(63, 134, 0, 0.05)'
-            }}>
-              <span style={{ marginRight: 12, fontSize: 14, color: '#666' }}>场内价格走势：</span>
-              <span style={{ fontSize: 18, fontWeight: 'bold', color: parseFloat(selectedFund.market_change) >= 0 ? '#cf1322' : '#3f8600' }}>
-                {parseFloat(selectedFund.market_change) >= 0 ? '+' : ''}{selectedFund.market_change}
-              </span>
-              <span style={{ marginLeft: 8, fontSize: 16, fontWeight: 'bold', color: parseFloat(selectedFund.market_change) >= 0 ? '#cf1322' : '#3f8600' }}>
-                ({parseFloat(selectedFund.market_change_percent) >= 0 ? '+' : ''}{selectedFund.market_change_percent}%)
-              </span>
-              {parseFloat(selectedFund.market_change) >= 0 ? (
-                <TrendingUpOutlined style={{ marginLeft: 8, color: '#cf1322' }} />
-              ) : (
-                <TrendingDownOutlined style={{ marginLeft: 8, color: '#3f8600' }} />
-              )}
-            </div>
-          )}
+  const errorChartOption = useMemo(() => {
+    if (!selectedFund || historyData.length === 0) return {};
 
-          {/* 近3个月历史曲线 */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 12, color: '#333' }}>
-              近3个月净值与估值曲线
+    const dates = historyData.map(item => item.nav_date);
+    const errors = historyData.map(item => {
+      if (!item.vst_nav || !item.unit_nav) return null;
+      return calculateError(item.vst_nav, item.unit_nav);
+    });
+
+    return {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(15, 22, 35, 0.95)',
+        borderColor: '#253550',
+        textStyle: { color: '#e2eaf6' },
+        formatter: (params) => {
+          const val = params[0].value;
+          let level = '优';
+          let color = '#36b37e';
+          if (val !== null) {
+            if (Math.abs(val) >= 1) { level = '差'; color = '#f0524f'; }
+            else if (Math.abs(val) >= 0.3) { level = '良'; color = '#f0a500'; }
+          }
+          return `<div style="font-weight:bold;margin-bottom:4px;">${params[0].axisValue}</div>
+                  <div style="color:${color}">估值误差: ${val !== null ? val.toFixed(2) : '--'}% (${level})</div>`;
+        }
+      },
+      grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLine: { lineStyle: { color: '#1e2d47' } },
+        axisLabel: { color: '#8fa3c0', fontSize: 10, rotate: 45 },
+        splitLine: { show: false }
+      },
+      yAxis: {
+        type: 'value',
+        axisLine: { lineStyle: { color: '#1e2d47' } },
+        axisLabel: { color: '#8fa3c0', fontSize: 11, formatter: (v) => v.toFixed(2) + '%' },
+        splitLine: { lineStyle: { color: '#1e2d47', type: 'dashed' } }
+      },
+      series: [{
+        name: '估值误差',
+        type: 'bar',
+        data: errors.map((val, idx) => ({
+          value: val,
+          itemStyle: {
+            color: val !== null ? (Math.abs(val) >= 1 ? '#f0524f' : Math.abs(val) >= 0.3 ? '#f0a500' : '#36b37e') : '#4d6480',
+            borderRadius: [2, 2, 0, 0]
+          }
+        })),
+        barWidth: '50%'
+      }]
+    };
+  }, [selectedFund, historyData]);
+
+  const metricsGrid = useMemo(() => {
+    if (!selectedFund) return null;
+    
+    const premium = calculatePremium(selectedFund.close_price, selectedFund.latest_nav);
+    const error = calculateError(selectedFund.estimate_nav, selectedFund.latest_nav);
+    
+    return (
+      <Row gutter={12} style={{ marginBottom: 16 }}>
+        <Col xs={6}>
+          <Card className="metric-card">
+            <div className="metric-label">💹 最新净值</div>
+            <div className="metric-value">{selectedFund.latest_nav || '--'}</div>
+            <div className="metric-sub">单位净值</div>
+          </Card>
+        </Col>
+        <Col xs={6}>
+          <Card className="metric-card">
+            <div className="metric-label">🏷 场内收盘价</div>
+            <div className="metric-value">{selectedFund.close_price || '--'}</div>
+            <div className="metric-sub">场内交易价</div>
+          </Card>
+        </Col>
+        <Col xs={6}>
+          <Card className="metric-card">
+            <div className="metric-label">📊 盘中估值</div>
+            <div className="metric-value">{selectedFund.estimate_nav || '--'}</div>
+            <div className="metric-sub neu">实时估算</div>
+          </Card>
+        </Col>
+        <Col xs={6}>
+          <Card className="metric-card">
+            <div className="metric-label">🔔 收盘估值</div>
+            <div className="metric-value">{selectedFund.vst_nav || '--'}</div>
+            <div className="metric-sub">15:00时点</div>
+          </Card>
+        </Col>
+        <Col xs={6}>
+          <Card className={`metric-card ${premium > 0 ? 'hl-p' : premium < 0 ? 'hl-n' : ''}`}>
+            <div className="metric-label">📐 折溢价率</div>
+            <div className={`metric-value ${premium > 0 ? 'pos' : premium < 0 ? 'neg' : ''}`}>
+              {premium !== null ? `${premium > 0 ? '+' : ''}${premium.toFixed(2)}%` : '--'}
             </div>
+            <div className="metric-sub">收盘价 vs 净值</div>
+          </Card>
+        </Col>
+        <Col xs={6}>
+          <Card className={`metric-card ${error !== null && Math.abs(error) < 0.3 ? 'hl-n' : error !== null && Math.abs(error) >= 1 ? 'hl-p' : ''}`}>
+            <div className="metric-label">🎯 估值误差</div>
+            <div className={`metric-value ${error !== null && error >= 0 ? 'pos' : error !== null && error < 0 ? 'neg' : ''}`}>
+              {error !== null ? `${error >= 0 ? '+' : ''}${error.toFixed(2)}%` : '--'}
+            </div>
+            <div className="metric-sub neu">&lt;0.3%为优</div>
+          </Card>
+        </Col>
+        <Col xs={6}>
+          <Card className="metric-card">
+            <div className="metric-label">📈 场内份额</div>
+            <div className="metric-value">{selectedFund.market_share ? selectedFund.market_share.toLocaleString() : '--'}</div>
+            <div className="metric-sub">万份</div>
+          </Card>
+        </Col>
+        <Col xs={6}>
+          <Card className={`metric-card ${selectedFund.daily_share_change > 0 ? 'hl-n' : selectedFund.daily_share_change < 0 ? 'hl-p' : ''}`}>
+            <div className="metric-label">🔄 份额变化</div>
+            <div className={`metric-value ${selectedFund.daily_share_change > 0 ? 'neg' : selectedFund.daily_share_change < 0 ? 'pos' : ''}`}>
+              {selectedFund.daily_share_change ? `${selectedFund.daily_share_change > 0 ? '+' : ''}${selectedFund.daily_share_change.toLocaleString()}` : '--'}
+            </div>
+            <div className="metric-sub">万份</div>
+          </Card>
+        </Col>
+      </Row>
+    );
+  }, [selectedFund]);
+
+  return (
+    <div className="lof-page">
+      <style>{`
+        .lof-page {
+          min-height: 100vh;
+          background: linear-gradient(135deg, #0a0e17 0%, #0f1623 100%);
+          padding: 20px;
+        }
+        
+        .page-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid #1e2d47;
+        }
+        
+        .page-title {
+          font-size: 20px;
+          font-weight: 700;
+          color: #e2eaf6;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        
+        .search-box {
+          background: #141d2e;
+          border: 1px solid #253550;
+          border-radius: 8px;
+          padding: 8px 14px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .search-box input {
+          background: transparent;
+          border: none;
+          color: #e2eaf6;
+          font-size: 13px;
+          outline: none;
+          width: 200px;
+        }
+        
+        .search-box input::placeholder {
+          color: #4d6480;
+        }
+        
+        .fund-table {
+          background: #0f1623;
+          border: 1px solid #1e2d47;
+          border-radius: 12px;
+          overflow: hidden;
+        }
+        
+        .table-header {
+          background: #141d2e;
+          padding: 12px 16px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid #1e2d47;
+        }
+        
+        .table-header-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .table-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: #e2eaf6;
+        }
+        
+        .table-count {
+          font-size: 11px;
+          color: #4d6480;
+          background: #1e2d47;
+          padding: 2px 8px;
+          border-radius: 10px;
+        }
+        
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12px;
+        }
+        
+        thead th {
+          background: #141d2e;
+          color: #4d6480;
+          font-weight: 600;
+          padding: 10px 12px;
+          text-align: right;
+          white-space: nowrap;
+          border-bottom: 1px solid #1e2d47;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+        
+        thead th:first-child {
+          text-align: left;
+        }
+        
+        tbody td {
+          padding: 10px 12px;
+          border-bottom: 1px solid rgba(30, 45, 71, 0.6);
+          text-align: right;
+          font-variant-numeric: tabular-nums;
+          color: #e2eaf6;
+        }
+        
+        tbody td:first-child {
+          text-align: left;
+          color: #8fa3c0;
+        }
+        
+        tbody tr:hover td {
+          background: rgba(20, 29, 46, 0.8);
+        }
+        
+        tbody tr:last-child td {
+          border-bottom: none;
+        }
+        
+        .td-p { color: #f0524f; font-weight: 600; }
+        .td-n { color: #36b37e; font-weight: 600; }
+        .td-na { color: #4d6480; font-style: italic; }
+        
+        .btn-view {
+          background: #1e6cc8;
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          padding: 4px 10px;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          transition: all 0.15s;
+        }
+        
+        .btn-view:hover {
+          background: #2a7fd6;
+        }
+        
+        .tag {
+          font-size: 10px;
+          padding: 1px 6px;
+          border-radius: 4px;
+          font-weight: 600;
+          margin-left: 4px;
+        }
+        
+        .tag-est { background: rgba(240, 165, 0, 0.15); color: #f0a500; }
+        .tag-vst { background: rgba(77, 157, 224, 0.15); color: #4d9de0; }
+        
+        .pagination-wrapper {
+          display: flex;
+          justify-content: center;
+          padding: 16px;
+          border-top: 1px solid #1e2d47;
+        }
+        
+        .ant-pagination {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+        
+        .ant-pagination-item {
+          background: #141d2e;
+          border: 1px solid #253550;
+          border-radius: 6px;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #8fa3c0;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        
+        .ant-pagination-item:hover {
+          border-color: #4d9de0;
+          color: #4d9de0;
+        }
+        
+        .ant-pagination-item-active {
+          background: #1e6cc8;
+          border-color: #1e6cc8;
+          color: #fff;
+        }
+        
+        .ant-pagination-prev, .ant-pagination-next {
+          background: #141d2e;
+          border: 1px solid #253550;
+          border-radius: 6px;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #8fa3c0;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        
+        .ant-pagination-prev:hover, .ant-pagination-next:hover {
+          border-color: #4d9de0;
+          color: #4d9de0;
+        }
+        
+        .modal-content {
+          background: #0f1623;
+          border: 1px solid #1e2d47;
+          border-radius: 12px;
+          max-width: 900px;
+          width: 95%;
+          max-height: 90vh;
+          overflow: hidden;
+        }
+        
+        .modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 14px 18px;
+          border-bottom: 1px solid #1e2d47;
+          background: #141d2e;
+        }
+        
+        .modal-title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        
+        .modal-title .badge {
+          background: #1e6cc8;
+          color: #fff;
+          font-size: 11px;
+          font-weight: 700;
+          padding: 3px 8px;
+          border-radius: 4px;
+        }
+        
+        .modal-title-text {
+          font-size: 15px;
+          font-weight: 700;
+          color: #e2eaf6;
+        }
+        
+        .modal-close {
+          background: none;
+          border: none;
+          color: #8fa3c0;
+          font-size: 16px;
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 4px;
+          transition: all 0.15s;
+        }
+        
+        .modal-close:hover {
+          background: rgba(255, 255, 255, 0.1);
+          color: #e2eaf6;
+        }
+        
+        .modal-body {
+          padding: 16px;
+          overflow-y: auto;
+          max-height: calc(90vh - 60px);
+        }
+        
+        .metric-card {
+          background: #0f1623 !important;
+          border: 1px solid #1e2d47 !important;
+          border-radius: 12px !important;
+          padding: 12px 14px !important;
+          transition: all 0.15s;
+        }
+        
+        .metric-card:hover {
+          border-color: #253550 !important;
+        }
+        
+        .metric-card.hl-p {
+          border-color: rgba(240, 82, 79, 0.35) !important;
+          background: rgba(240, 82, 79, 0.05) !important;
+        }
+        
+        .metric-card.hl-n {
+          border-color: rgba(54, 179, 126, 0.35) !important;
+          background: rgba(54, 179, 126, 0.05) !important;
+        }
+        
+        .metric-label {
+          font-size: 10px;
+          color: #4d6480;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 5px;
+        }
+        
+        .metric-value {
+          font-size: 20px;
+          font-weight: 700;
+          color: #e2eaf6;
+          font-variant-numeric: tabular-nums;
+          line-height: 1.1;
+        }
+        
+        .metric-value.pos { color: #f0524f; }
+        .metric-value.neg { color: #36b37e; }
+        
+        .metric-sub {
+          font-size: 11px;
+          margin-top: 3px;
+          color: #8fa3c0;
+        }
+        
+        .metric-sub.neu { color: #4d6480; }
+        
+        .chart-card {
+          background: #0f1623;
+          border: 1px solid #1e2d47;
+          border-radius: 12px;
+          padding: 14px 16px;
+          margin-bottom: 14px;
+        }
+        
+        .chart-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 10px;
+        }
+        
+        .chart-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: #e2eaf6;
+        }
+        
+        .chart-subtitle {
+          font-size: 10px;
+          color: #4d6480;
+          margin-top: 2px;
+        }
+        
+        .chart-legend {
+          display: flex;
+          gap: 14px;
+          font-size: 10px;
+          color: #8fa3c0;
+        }
+        
+        .legend-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          display: inline-block;
+          margin-right: 4px;
+        }
+        
+        .legend-line {
+          width: 14px;
+          height: 2px;
+          display: inline-block;
+          margin-right: 4px;
+          vertical-align: middle;
+        }
+        
+        .info-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+          gap: 12px;
+          margin-top: 16px;
+        }
+        
+        .info-card {
+          background: #0f1623;
+          border: 1px solid #1e2d47;
+          border-radius: 12px;
+          padding: 14px;
+        }
+        
+        .info-card-title {
+          font-size: 10px;
+          color: #4d6480;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          margin-bottom: 10px;
+          border-bottom: 1px solid #1e2d47;
+          padding-bottom: 7px;
+        }
+        
+        .info-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 4px 0;
+          font-size: 12px;
+        }
+        
+        .info-key { color: #8fa3c0; }
+        .info-value { color: #e2eaf6; font-weight: 500; text-align: right; }
+        
+        .loading-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(10, 14, 23, 0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10;
+        }
+        
+        .loading-spinner {
+          width: 32px;
+          height: 32px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: #4d9de0;
+          border-radius: 50%;
+          animation: spin 0.7s linear infinite;
+        }
+        
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        
+        .empty-state {
+          text-align: center;
+          padding: 60px 20px;
+          color: #4d6480;
+        }
+        
+        .empty-state-icon {
+          font-size: 48px;
+          margin-bottom: 16px;
+          opacity: 0.5;
+        }
+        
+        .empty-state-title {
+          font-size: 16px;
+          font-weight: 600;
+          margin-bottom: 8px;
+          color: #8fa3c0;
+        }
+        
+        .empty-state-desc {
+          font-size: 13px;
+          line-height: 1.6;
+        }
+      `}</style>
+
+      <div className="page-header">
+        <div className="page-title">
+          <BarChart3Outlined style={{ color: '#4d9de0' }} />
+          LOF基金全景
+        </div>
+        <div className="search-box">
+          <SearchOutlined style={{ color: '#4d6480' }} />
+          <input
+            type="text"
+            placeholder="搜索基金代码或名称"
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="fund-table">
+        <div className="table-header">
+          <div className="table-header-left">
+            <div className="table-title">LOF基金列表</div>
+            <div className="table-count">{total} 只</div>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="loading-overlay">
+            <div className="loading-spinner"></div>
+          </div>
+        ) : funds.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">📊</div>
+            <div className="empty-state-title">暂无LOF基金数据</div>
+            <div className="empty-state-desc">请检查网络连接或稍后重试</div>
+          </div>
+        ) : (
+          <>
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: '10%' }}>代码</th>
+                  <th style={{ width: '18%' }}>基金名称</th>
+                  <th style={{ width: '10%' }}>收盘价</th>
+                  <th style={{ width: '10%' }}>收盘VST <span className="tag tag-vst">15:00</span></th>
+                  <th style={{ width: '10%' }}>估值净值 <span className="tag tag-est">EST</span></th>
+                  <th style={{ width: '10%' }}>单位净值</th>
+                  <th style={{ width: '8%' }}>折溢价率</th>
+                  <th style={{ width: '10%' }}>场内份额(万份)</th>
+                  <th style={{ width: '10%' }}>份额变化</th>
+                  <th style={{ width: '4%' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {funds.map((fund) => {
+                  const premium = calculatePremium(fund.close_price, fund.latest_nav);
+                  return (
+                    <tr key={fund.fund_code}>
+                      <td style={{ fontWeight: 600 }}>{fund.fund_code}</td>
+                      <td>{fund.fund_name}</td>
+                      <td>¥{fund.close_price || '--'}</td>
+                      <td>¥{fund.vst_nav || '--'}</td>
+                      <td>¥{fund.estimate_nav || '--'}</td>
+                      <td>¥{fund.latest_nav || '--'}</td>
+                      <td className={premium > 0 ? 'td-p' : premium < 0 ? 'td-n' : 'td-na'}>
+                        {premium !== null ? `${premium > 0 ? '+' : ''}${premium.toFixed(2)}%` : '--'}
+                      </td>
+                      <td>{fund.market_share ? fund.market_share.toLocaleString() : '--'}</td>
+                      <td className={fund.daily_share_change > 0 ? 'td-n' : fund.daily_share_change < 0 ? 'td-p' : 'td-na'}>
+                        {fund.daily_share_change ? `${fund.daily_share_change > 0 ? '+' : ''}${fund.daily_share_change.toLocaleString()}` : '--'}
+                      </td>
+                      <td>
+                        <button className="btn-view" onClick={() => handleViewDetail(fund.fund_code)}>
+                          <EyeOutlined style={{ fontSize: 12 }} />
+                          查看
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="pagination-wrapper">
+              <Pagination
+                current={page}
+                total={total}
+                pageSize={pageSize}
+                onChange={handlePageChange}
+                showSizeChanger={false}
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      <Modal
+        visible={modalVisible}
+        footer={null}
+        closable={false}
+        maskStyle={{ background: 'rgba(0, 0, 0, 0.7)' }}
+        wrapClassName="modal-wrapper"
+      >
+        <div className="modal-content">
+          <div className="modal-header">
+            <div className="modal-title">
+              <span className="badge">{selectedFund?.fund_code}</span>
+              <span className="modal-title-text">{selectedFund?.fund_name}</span>
+            </div>
+            <button className="modal-close" onClick={() => setModalVisible(false)}>
+              <XOutlined />
+            </button>
+          </div>
+          
+          <div className="modal-body">
             {historyLoading ? (
-              <div style={{ textAlign: 'center', padding: '50px 0' }}>
-                加载中...
+              <div className="loading-overlay">
+                <div className="loading-spinner"></div>
               </div>
-            ) : historyData.length > 0 ? (
-              <ReactECharts
-                option={chartOption}
-                style={{ height: 400 }}
-                opts={{ renderer: 'canvas' }}
-              />
             ) : (
-              <div style={{ textAlign: 'center', padding: '50px 0', color: '#999' }}>
-                暂无历史数据
-              </div>
+              <>
+                {metricsGrid}
+
+                <div className="chart-card">
+                  <div className="chart-header">
+                    <div>
+                      <div className="chart-title">收盘价 / 净值 / 收盘估值 三线对比</div>
+                      <div className="chart-subtitle">核心分析曲线 · 三线贴合度反映估值准确性</div>
+                    </div>
+                    <div className="chart-legend">
+                      <span><span className="legend-dot" style={{ background: '#f0524f' }}></span>场内收盘价</span>
+                      <span><span className="legend-dot" style={{ background: '#4d9de0' }}></span>收盘估值</span>
+                      <span><span className="legend-dot" style={{ background: '#36b37e' }}></span>公布净值</span>
+                      <span><span className="legend-dot" style={{ background: '#f0a500' }}></span>折溢价率</span>
+                    </div>
+                  </div>
+                  <div style={{ height: 260 }}>
+                    <ReactECharts option={mainChartOption} style={{ height: '100%' }} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="chart-card">
+                    <div className="chart-header">
+                      <div className="chart-title">折溢价率走势</div>
+                    </div>
+                    <div style={{ height: 160 }}>
+                      <ReactECharts option={premiumChartOption} style={{ height: '100%' }} />
+                    </div>
+                  </div>
+                  <div className="chart-card">
+                    <div className="chart-header">
+                      <div className="chart-title">收盘估值误差率</div>
+                      <div style={{ fontSize: 10, color: '#4d6480' }}>越小越准确</div>
+                    </div>
+                    <div style={{ height: 160 }}>
+                      <ReactECharts option={errorChartOption} style={{ height: '100%' }} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="info-grid">
+                  <div className="info-card">
+                    <div className="info-card-title">基金基本信息</div>
+                    <div className="info-row"><span className="info-key">基金代码</span><span className="info-value">{selectedFund?.fund_code}</span></div>
+                    <div className="info-row"><span className="info-key">基金类型</span><span className="info-value">{selectedFund?.fund_type}</span></div>
+                    <div className="info-row"><span className="info-key">最新净值</span><span className="info-value">¥{selectedFund?.latest_nav}</span></div>
+                    <div className="info-row"><span className="info-key">净值日期</span><span className="info-value">{selectedFund?.latest_nav_date}</span></div>
+                  </div>
+                  <div className="info-card">
+                    <div className="info-card-title">场内交易信息</div>
+                    <div className="info-row"><span className="info-key">收盘价</span><span className="info-value">¥{selectedFund?.close_price}</span></div>
+                    <div className="info-row"><span className="info-key">场内份额</span><span className="info-value">{selectedFund?.market_share?.toLocaleString()} 万份</span></div>
+                    <div className="info-row"><span className="info-key">份额变化</span><span className="info-value" style={{ color: selectedFund?.daily_share_change > 0 ? '#36b37e' : selectedFund?.daily_share_change < 0 ? '#f0524f' : '#8fa3c0' }}>
+                      {selectedFund?.daily_share_change ? `${selectedFund.daily_share_change > 0 ? '+' : ''}${selectedFund.daily_share_change.toLocaleString()}` : '--'} 万份
+                    </span></div>
+                    <div className="info-row"><span className="info-key">折溢价率</span><span className="info-value" style={{ color: premium > 0 ? '#f0524f' : premium < 0 ? '#36b37e' : '#8fa3c0' }}>
+                      {premium !== null ? `${premium > 0 ? '+' : ''}${premium.toFixed(2)}%` : '--'}
+                    </span></div>
+                  </div>
+                </div>
+              </>
             )}
           </div>
-
-          {/* 详细数据表格 */}
-          {historyData.length > 0 && (
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 12, color: '#333' }}>
-                历史估值数据详情
-              </div>
-              <Table
-                dataSource={historyData.slice(-30).reverse()}
-                rowKey={(record, index) => index}
-                pagination={false}
-                scroll={{ x: 'max-content' }}
-                columns={[
-                  {
-                    title: '日期',
-                    dataIndex: 'nav_date',
-                    key: 'nav_date',
-                    width: 100,
-                  },
-                  {
-                    title: '单位净值',
-                    dataIndex: 'unit_nav',
-                    key: 'unit_nav',
-                    width: 120,
-                    render: (val) => <span>¥{parseFloat(val).toFixed(4)}</span>
-                  },
-                  {
-                    title: '估值净值',
-                    dataIndex: 'estimate_nav',
-                    key: 'estimate_nav',
-                    width: 120,
-                    render: (val) => val ? <span>¥{parseFloat(val).toFixed(4)}</span> : '-'
-                  },
-                  {
-                    title: '日增长率',
-                    dataIndex: 'daily_growth',
-                    key: 'daily_growth',
-                    width: 100,
-                    render: (val) => val ? (
-                      <span style={{ color: parseFloat(val) >= 0 ? '#cf1322' : '#3f8600' }}>
-                        {parseFloat(val) >= 0 ? '+' : ''}{val}%
-                      </span>
-                    ) : '-'
-                  },
-                  {
-                    title: '估值误差',
-                    key: 'estimate_error',
-                    width: 100,
-                    render: (_, record) => {
-                      if (!record.estimate_nav || !record.unit_nav) return '-';
-                      const est = parseFloat(record.estimate_nav);
-                      const nav = parseFloat(record.unit_nav);
-                      const error = ((est - nav) / nav) * 100;
-                      const color = Math.abs(error) < 0.5 ? '#52c41a' : (Math.abs(error) < 1 ? '#faad14' : '#ff4d4f');
-                      return (
-                        <span style={{ color }}>
-                          {error >= 0 ? '+' : ''}{error.toFixed(2)}%
-                        </span>
-                      );
-                    }
-                  },
-                ]}
-              />
-            </div>
-          )}
-        </Card>
-      )}
-    </Space>
+        </div>
+      </Modal>
+    </div>
   );
 };
 
