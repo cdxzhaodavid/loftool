@@ -3,8 +3,6 @@ services:
     image: ghcr.io/ye-yu-mo/fundval-live:latest
     ports:
       - "21345:21345"
-    volumes:
-      - ./frontend:/app/frontend
     environment:
       - SECRET_KEY=your-secret-key-change-in-production-abc123
       - DEBUG=true
